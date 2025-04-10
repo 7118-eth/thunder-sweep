@@ -42,28 +42,37 @@ async function runComparisonBenchmark() {
   } finally {
     kv.close();
   }
+
+  // CPU-bound optimizations - Test with varying concurrency levels and batch sizes
+  console.log("\n📊 CPU-OPTIMIZED IMPLEMENTATION");
   
-  // Run with different concurrency levels to find optimal settings
-  const concurrencyLevels = [10, 25, 50, 100, 200];
+  // Test different combinations of workers (CPU concurrency) and batch sizes
+  // For CPU-bound tasks, concurrency should be close to available CPU cores
+  const cpuConfigs = [
+    { concurrency: 2, batchSize: 100 },
+    { concurrency: 4, batchSize: 100 },
+    { concurrency: 6, batchSize: 100 },
+    { concurrency: 4, batchSize: 50 },
+    { concurrency: 4, batchSize: 200 },
+    { concurrency: 4, batchSize: 500 },
+  ];
   
-  // Parallel implementation benchmark
-  console.log("\n📊 PARALLEL IMPLEMENTATION");
-  
-  for (const concurrency of concurrencyLevels) {
-    console.log(`\n⚙️ Testing with concurrency level: ${concurrency}`);
+  for (const config of cpuConfigs) {
+    console.log(`\n⚙️ Testing with CPU config: concurrency=${config.concurrency}, batchSize=${config.batchSize}`);
     kv = await Deno.openKv(":memory:");
     
     try {
       const parStartTime = performance.now();
       await seedWalletsParallel(kv, { 
         maxAddressIndex: WALLETS_COUNT - 1,
-        concurrency
+        concurrency: config.concurrency,
+        batchSize: config.batchSize
       }, mockEnv);
       const parEndTime = performance.now();
       const parTotalTime = parEndTime - parStartTime;
       const parWalletsPerSecond = WALLETS_COUNT / (parTotalTime / 1000);
 
-      console.log(`📈 Parallel Implementation Results (concurrency=${concurrency}):`);
+      console.log(`📈 CPU-Optimized Results (concurrency=${config.concurrency}, batchSize=${config.batchSize}):`);
       console.log(`Total wallets generated: ${WALLETS_COUNT}`);
       console.log(`Total time: ${formatTime(parTotalTime)}`);
       console.log(`Average speed: ${parWalletsPerSecond.toFixed(2)} wallets/second`);
@@ -72,6 +81,48 @@ async function runComparisonBenchmark() {
       kv.close();
     }
   }
+  
+  // Test one pure derivation configuration 
+  console.log("\n🧪 PURE DERIVATION TEST (CPU-ONLY, NO KV OPERATIONS)");
+  const derivationStartTime = performance.now();
+  
+  // Run pure derivation without KV storage, using worker count = CPU cores
+  const PURE_CPU_CONCURRENCY = 4;
+  const addressBatches = [];
+  
+  // Create batches and calculate addresses
+  const batchSize = Math.ceil(WALLETS_COUNT / PURE_CPU_CONCURRENCY);
+  const batchPromises = [];
+  
+  for (let i = 0; i < PURE_CPU_CONCURRENCY; i++) {
+    const start = i * batchSize;
+    const end = Math.min(start + batchSize - 1, WALLETS_COUNT - 1);
+    
+    // Create a promise for each batch
+    batchPromises.push((async () => {
+      const addresses = [];
+      for (let j = start; j <= end; j++) {
+        const account = mnemonicToAccount(TEST_MNEMONIC, { addressIndex: j });
+        addresses.push(account.address);
+      }
+      return addresses;
+    })());
+  }
+  
+  // Run all batches in parallel
+  await Promise.all(batchPromises).then(results => {
+    addressBatches.push(...results);
+  });
+  
+  const derivationEndTime = performance.now();
+  const derivationTotalTime = derivationEndTime - derivationStartTime;
+  const derivationWalletsPerSecond = WALLETS_COUNT / (derivationTotalTime / 1000);
+  
+  console.log(`📈 Pure CPU Derivation Results (concurrency=${PURE_CPU_CONCURRENCY}):`);
+  console.log(`Total wallets generated: ${WALLETS_COUNT}`);
+  console.log(`Total time: ${formatTime(derivationTotalTime)}`);
+  console.log(`Average speed: ${derivationWalletsPerSecond.toFixed(2)} wallets/second`);
+  console.log(`Average time per wallet: ${(derivationTotalTime / WALLETS_COUNT).toFixed(2)}ms`);
   
   console.log("\n🏁 Benchmark completed!");
 }
