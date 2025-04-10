@@ -2,7 +2,10 @@
   "version": "4",
   "specifiers": {
     "jsr:@std/assert@1": "1.0.12",
+    "jsr:@std/assert@^1.0.8": "1.0.12",
+    "jsr:@std/dotenv@*": "0.225.2",
     "jsr:@std/internal@^1.0.6": "1.0.6",
+    "jsr:@std/testing@*": "1.0.5",
     "npm:viem@^2.26.2": "2.26.2_ws@8.18.1"
   },
   "jsr": {
@@ -12,8 +15,17 @@
         "jsr:@std/internal"
       ]
     },
+    "@std/dotenv@0.225.2": {
+      "integrity": "e2025dce4de6c7bca21dece8baddd4262b09d5187217e231b033e088e0c4dd23"
+    },
     "@std/internal@1.0.6": {
       "integrity": "9533b128f230f73bd209408bb07a4b12f8d4255ab2a4d22a1fd6d87304aca9a4"
+    },
+    "@std/testing@1.0.5": {
+      "integrity": "6e693cbec94c81a1ad3df668685c7ba8e20742bb10305bc7137faa5cf16d2ec4",
+      "dependencies": [
+        "jsr:@std/assert@^1.0.8"
+      ]
     }
   },
   "npm": {
