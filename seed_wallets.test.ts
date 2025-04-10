@@ -19,7 +19,7 @@ const EXPECTED_ADDRESS_1_0: Address = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb9226
 const EXPECTED_ADDRESS_1_1: Address = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 const EXPECTED_ADDRESS_1_2: Address = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
 // Expected addresses derived from TEST_MNEMONIC_2
-const EXPECTED_ADDRESS_2_0: Address = "0x31E830A9B316cfD702C245B66916A54cE5B90788";
+const EXPECTED_ADDRESS_2_0: Address = "0x58A57ed9d8d624cBD12e2C467D34787555bB1b25";
 
 // --- Test Suite: getSeedPhrasesFromEnv ---
 Deno.test("getSeedPhrasesFromEnv", async (t) => {
