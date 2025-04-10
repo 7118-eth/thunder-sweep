@@ -3,24 +3,32 @@ import { mnemonicToAccount } from "viem/accounts";
 import type { Address } from "viem";
 
 // --- Constants ---
-const MAX_ADDRESS_INDEX = 2000; // Derive addresses from index 0 to 2000
+// Removed MAX_ADDRESS_INDEX, will be passed via options
 const SEED_PHRASE_PREFIX = "SEED_PHRASE_";
+
+// --- Types ---
+interface SeedWalletOptions {
+    maxAddressIndex: number;
+}
 
 // --- Helper Functions ---
 
 /**
- * Finds all seed phrases defined as environment variables
+ * Finds all seed phrases defined in the provided environment object
  * following the pattern SEED_PHRASE_N.
+ * @param env An object representing environment variables (e.g., Deno.env.toObject()).
  * @returns Array of objects containing the index (N) and the phrase.
  */
-function getSeedPhrasesFromEnv(): { index: number; phrase: string }[] {
+export function getSeedPhrasesFromEnv(
+    env: Record<string, string> = Deno.env.toObject(),
+): { index: number; phrase: string }[] {
     const phrases: { index: number; phrase: string }[] = [];
     let i = 1;
     while (true) {
         const key = `${SEED_PHRASE_PREFIX}${i}`;
-        const phrase = Deno.env.get(key);
+        const phrase = env[key]; // Use the provided env object
         if (phrase) {
-            console.log(`Found ${key}`);
+            // console.log(`Found ${key}`); // Keep console logs out of potentially pure functions
             phrases.push({ index: i, phrase: phrase });
             i++;
         } else {
@@ -28,26 +36,33 @@ function getSeedPhrasesFromEnv(): { index: number; phrase: string }[] {
             break;
         }
     }
-    if (phrases.length === 0) {
-        console.warn(`No environment variables found starting with ${SEED_PHRASE_PREFIX}`);
-    }
+    // Moved warning to the calling function (seedWallets) which handles output
     return phrases;
 }
 
 // --- Main Seeding Logic ---
 
-async function seedWallets() {
+/**
+ * Derives addresses from seed phrases and stores them in the provided Deno KV store.
+ * @param kv The Deno KV store instance to use.
+ * @param options Configuration options, including maxAddressIndex.
+ * @param env The environment object containing seed phrases.
+ */
+export async function seedWallets(
+    kv: Deno.Kv,
+    options: SeedWalletOptions,
+    env: Record<string, string> = Deno.env.toObject(), // Allow injecting env for testing
+) {
     console.log("Starting wallet seeding process...");
 
-    const seedPhrases = getSeedPhrasesFromEnv();
+    const seedPhrases = getSeedPhrasesFromEnv(env);
     if (seedPhrases.length === 0) {
-        console.log("No seed phrases found to process. Exiting.");
+        console.warn(`No environment variables found starting with ${SEED_PHRASE_PREFIX}. Exiting.`);
         return;
     }
 
-    // Use the default persistent KV store for the actual seeding task
-    const kv = await Deno.openKv();
-    console.log("Opened Deno KV store.");
+    // KV store is now injected, no need to open it here.
+    // console.log("Using provided Deno KV store.");
 
     for (const { index: seedIndex, phrase: mnemonic } of seedPhrases) {
         console.log(`Processing ${SEED_PHRASE_PREFIX}${seedIndex}...`);
@@ -59,44 +74,59 @@ async function seedWallets() {
                  continue;
             }
 
-            for (let addressIndex = 0; addressIndex <= MAX_ADDRESS_INDEX; addressIndex++) {
-                // Derive the account for the current index
-                // IMPORTANT: We only extract the address, not the private key.
+            for (let addressIndex = 0; addressIndex <= options.maxAddressIndex; addressIndex++) {
                 const account = mnemonicToAccount(mnemonic, {
                     addressIndex: addressIndex,
                 });
                 const address: Address = account.address;
-
-                // Define the key for KV storage
                 const kvKey = ["wallet_address", `seed_${seedIndex}`, addressIndex];
 
-                // Store the derived address in Deno KV
-                // The value stored is just the address string.
                 await kv.set(kvKey, address);
                 storedCount++;
 
-                // Log progress periodically to avoid excessive output
-                if (addressIndex % 200 === 0 || addressIndex === MAX_ADDRESS_INDEX) {
+                if (addressIndex % 200 === 0 || addressIndex === options.maxAddressIndex) {
                     console.log(`  -> Stored index ${addressIndex}: ${address}`);
                 }
             }
-            console.log(`Finished processing ${SEED_PHRASE_PREFIX}${seedIndex}. Stored ${storedCount} addresses (indices 0-${MAX_ADDRESS_INDEX}).`);
+            console.log(`Finished processing ${SEED_PHRASE_PREFIX}${seedIndex}. Stored ${storedCount} addresses (indices 0-${options.maxAddressIndex}).`);
 
         } catch (error) {
-            // Log errors during derivation (e.g., invalid mnemonic format for viem)
             console.error(`Error processing ${SEED_PHRASE_PREFIX}${seedIndex} at index ${storedCount}:`, error.message);
             console.warn(`  Skipping remaining indices for ${SEED_PHRASE_PREFIX}${seedIndex} due to error.`);
-            continue; // Continue to the next seed phrase if one fails
+            continue;
         }
     }
 
-    // kv.close(); // Closing seems implicitly handled by Deno process exit
     console.log("Wallet seeding process completed.");
 }
 
 // --- Script Execution ---
 
-seedWallets().catch((err) => {
-    console.error("Seeding script encountered an unhandled error:", err);
-    Deno.exit(1); // Exit with a non-zero code to indicate failure
-}); 
+// This block runs only when the script is executed directly
+if (import.meta.main) {
+    const DEFAULT_MAX_ADDRESS_INDEX = 2000;
+
+    // Load .env file content into Deno.env
+    // The import "jsr:@std/dotenv/load" at the top handles this.
+
+    (async () => {
+        let kv: Deno.Kv | null = null;
+        try {
+            // Use the default persistent KV store for direct script execution
+            kv = await Deno.openKv();
+            console.log("Opened default Deno KV store for script execution.");
+
+            await seedWallets(kv, {
+                maxAddressIndex: DEFAULT_MAX_ADDRESS_INDEX,
+            }); // Uses Deno.env by default
+
+        } catch (err) {
+            console.error("Script execution encountered an error:", err);
+            Deno.exit(1); // Exit with a non-zero code to indicate failure
+        } finally {
+            // Ensure the KV store is closed if it was opened
+            kv?.close();
+            console.log("KV store closed.");
+        }
+    })();
+} 
