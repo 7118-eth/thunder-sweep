@@ -2,6 +2,7 @@ import "jsr:@std/dotenv/load";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
 import { mnemonicToAccount } from "viem/accounts";
+import type { Address } from "viem";
 
 // Configuration
 const RPC_URL = Deno.env.get("RPC_URL") as string;
@@ -31,6 +32,11 @@ const BATCH_SIZES = [1024, 2048, 4096, 8192, 16384].map(
   size => parseInt(Deno.env.get(`BATCH_SIZE_${size}`) || size.toString())
 );
 
+// Get available CPU cores using navigator.hardwareConcurrency
+const CPU_CORES = navigator.hardwareConcurrency || 4; // Default to 4 if detection fails
+const WORKER_COUNT = parseInt(Deno.env.get("WORKER_COUNT") || CPU_CORES.toString());
+const WALLET_BATCH_SIZE = parseInt(Deno.env.get("WALLET_BATCH_SIZE") || "100");
+
 // Create public client for Base network
 const publicClient = createPublicClient({
   chain: base,
@@ -42,7 +48,7 @@ const publicClient = createPublicClient({
 });
 
 // Multicall3 contract address on Base network
-const MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11";
+const MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
 
 // Interface for benchmark results
 interface BenchmarkResult {
@@ -55,14 +61,109 @@ interface BenchmarkResult {
   timestamp: string;
 }
 
-// Function to generate wallet addresses from a seed phrase
-function generateWallets(seedPhrase: string, count: number) {
-  const wallets = [];
-  for (let i = 0; i < count; i++) {
-    const account = mnemonicToAccount(seedPhrase, { addressIndex: i });
-    wallets.push(account.address);
+// Worker interface
+interface WalletGenerationResult {
+  type: 'success' | 'error';
+  startIndex: number;
+  endIndex: number;
+  addresses: Array<{ index: number; address: Address }>;
+  error?: string;
+}
+
+/**
+ * Generate wallet addresses in parallel using Deno Workers
+ */
+async function generateWalletsParallel(seedPhrase: string, count: number): Promise<Address[]> {
+  // Create batches for workers
+  const batches: { start: number; end: number }[] = [];
+  for (let i = 0; i < count; i += WALLET_BATCH_SIZE) {
+    const end = Math.min(i + WALLET_BATCH_SIZE - 1, count - 1);
+    batches.push({ start: i, end });
   }
-  return wallets;
+  
+  const startTime = performance.now();
+  console.log(`Generating ${count} wallet addresses using ${WORKER_COUNT} worker threads...`);
+  
+  // Create workers
+  const workers: Worker[] = [];
+  for (let i = 0; i < WORKER_COUNT; i++) {
+    const worker = new Worker(new URL("./wallet_worker.ts", import.meta.url).href, {
+      type: "module",
+    });
+    workers.push(worker);
+  }
+  
+  const addresses: Address[] = new Array(count);
+  let completedBatches = 0;
+  const totalBatches = batches.length;
+  
+  return new Promise<Address[]>((resolve, reject) => {
+    // Set up handlers for all workers
+    workers.forEach((worker, workerIndex) => {
+      worker.onmessage = (e: MessageEvent<WalletGenerationResult>) => {
+        const result = e.data;
+        
+        if (result.type === 'success') {
+          // Store the addresses in the main array
+          result.addresses.forEach(({ index, address }) => {
+            addresses[index] = address;
+          });
+          
+          completedBatches++;
+          
+          // Show progress
+          if (completedBatches % Math.max(1, Math.floor(totalBatches / 10)) === 0 || completedBatches === totalBatches) {
+            const progress = Math.round((completedBatches / totalBatches) * 100);
+            console.log(`  Progress: ${progress}% (${completedBatches}/${totalBatches} batches)`);
+          }
+          
+          // If there are more batches to process, assign work to this worker
+          const nextBatchIndex = workerIndex + (WORKER_COUNT * Math.floor(completedBatches / WORKER_COUNT));
+          if (nextBatchIndex < batches.length) {
+            const nextBatch = batches[nextBatchIndex];
+            worker.postMessage({
+              mnemonic: seedPhrase,
+              startIndex: nextBatch.start,
+              endIndex: nextBatch.end
+            });
+          }
+          
+          // If all batches are processed, clean up and resolve
+          if (completedBatches === totalBatches) {
+            const endTime = performance.now();
+            const duration = (endTime - startTime) / 1000;
+            const addressesPerSecond = count / duration;
+            
+            console.log(`Generated ${count} addresses in ${duration.toFixed(2)}s (${addressesPerSecond.toFixed(2)} addresses/second)`);
+            
+            workers.forEach(w => w.terminate());
+            resolve(addresses);
+          }
+        } else if (result.type === 'error') {
+          console.error(`Worker error: ${result.error}`);
+          workers.forEach(w => w.terminate());
+          reject(new Error(`Worker error: ${result.error}`));
+        }
+      };
+      
+      worker.onerror = (err) => {
+        console.error('Worker error:', err);
+        workers.forEach(w => w.terminate());
+        reject(err);
+      };
+    });
+    
+    // Start initial batch of work (one per worker)
+    const initialBatchCount = Math.min(WORKER_COUNT, batches.length);
+    for (let i = 0; i < initialBatchCount; i++) {
+      const batch = batches[i];
+      workers[i].postMessage({
+        mnemonic: seedPhrase,
+        startIndex: batch.start,
+        endIndex: batch.end
+      });
+    }
+  });
 }
 
 // Helper to measure execution time
@@ -74,7 +175,7 @@ async function measureTime<T>(fn: () => Promise<T>): Promise<[T, number]> {
 }
 
 // Function to fetch ETH balances using multicall
-async function fetchBalancesMulticall(addresses: string[], batchSize: number) {
+async function fetchBalancesMulticall(addresses: Address[], batchSize: number) {
   // For ETH balances, we use the getEthBalance function on the multicall contract
   const contracts = addresses.map((address) => ({
     address: MULTICALL3_ADDRESS,
@@ -120,6 +221,7 @@ async function runBenchmark() {
   console.log("Starting ETH balance multicall benchmark on Base network");
   console.log(`RPC URL: ${RPC_URL}`);
   console.log(`Configuration: Start=${START_WALLET_COUNT}, Max=${MAX_WALLET_COUNT}, Increment=${WALLET_COUNT_INCREMENT}`);
+  console.log(`Wallet Generation: Using ${WORKER_COUNT}/${CPU_CORES} CPU cores, Batch Size=${WALLET_BATCH_SIZE}`);
   console.log(`Batch sizes to test: ${BATCH_SIZES.join(", ")}`);
   console.log("-----------------------------------------------------");
   
@@ -136,9 +238,9 @@ async function runBenchmark() {
   let walletCount = START_WALLET_COUNT;
   const benchmarkResults: BenchmarkResult[] = [];
 
-  // Generate a large pool of wallet addresses for testing
+  // Generate a large pool of wallet addresses for testing (in parallel)
   console.log(`Generating ${MAX_WALLET_COUNT} wallet addresses...`);
-  const allWallets = generateWallets(SEED_PHRASE, MAX_WALLET_COUNT);
+  const allWallets = await generateWalletsParallel(SEED_PHRASE, MAX_WALLET_COUNT);
   
   // Test with increasing wallet counts
   while (walletCount <= MAX_WALLET_COUNT) {

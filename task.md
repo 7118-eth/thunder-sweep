@@ -102,6 +102,39 @@
     *   Create README.md with usage instructions. ✅
     *   Add multi-threaded implementation option. ✅
 
+7.  **ETH Balance Multicall Benchmark:** ✅
+    *   Create a benchmark script to test RPC limits for ETH balance multicalls on Base network. ✅
+    *   Implement parallel wallet address generation for optimal performance. ✅
+    *   Test with incrementally increasing wallet counts until the RPC endpoint fails. ✅
+    *   Measure and report key metrics (requests per second, response time). ✅
+    *   Export results to CSV for further analysis. ✅
+    
+    **Multicall Benchmark Features:**
+    *   **Parallelized Wallet Generation:**
+        * Uses Deno Workers for multi-CPU wallet address generation
+        * Significantly reduces setup time before testing
+        * Dynamically adapts to available CPU cores
+    
+    *   **Batch Size Optimization:**
+        * Tests multiple batch sizes (1024, 2048, 4096, 8192, 16384 bytes)
+        * Automatically selects the most efficient batch size for each test
+        * Reports the optimal batch size settings
+    
+    *   **RPC Stress Testing:**
+        * Incrementally increases wallet counts to find the RPC breaking point
+        * Implements backoff and retry strategies for reliable testing
+        * Provides detailed error reporting when failures occur
+    
+    *   **Performance Metrics:**
+        * Measures response time and requests per second
+        * Calculates maximum successful wallet count
+        * Provides CSV export for detailed analysis
+        
+    *   **Configuration Options:**
+        * Command-line flags (--csv, --detailed)
+        * Environment variables for customization
+        * Adjustable retry logic and delay settings
+
 **Next Steps:**
 
 *   Project complete and ready for production use 

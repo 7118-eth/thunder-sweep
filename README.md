@@ -1,113 +1,98 @@
-# Ethereum Wallet Seed Phrase Manager
+# Wallet Collection Toolkit
 
-A Deno-based tool for deriving multiple Ethereum wallet addresses from seed phrases and storing them in Deno KV.
+A set of Deno utilities for handling seed phrase loading, wallet address derivation, and Base network ETH balance testing.
 
 ## Features
 
 - Load seed phrases from environment variables
-- Derive wallet addresses using HD paths
-- Store addresses in Deno KV for persistence
-- Efficient batch processing of multiple seed phrases
-- Performance monitoring and statistics
-- **Multi-threaded processing** for up to 8.5x faster wallet generation
+- Derive multiple wallet addresses per seed phrase
+- Store addresses in Deno KV
+- Benchmark wallet derivation performance
+- Test RPC limits with ETH balance multicall benchmark
 
 ## Prerequisites
 
-- [Deno](https://deno.com/) installed (v1.36.0 or later)
-- Basic understanding of seed phrases and HD wallets
+- [Deno](https://deno.land/) installed (version 1.36.0 or newer)
+- Access to a Base network RPC endpoint
 
-## Installation
+## Environment Setup
 
-1. Clone this repository
-2. Copy `.env.example` to `.env`
-3. Add your seed phrases to the `.env` file (following the `SEED_PHRASE_N` pattern)
+Create a `.env` file with your seed phrases and RPC URL:
+
+```
+SEED_PHRASE_1="your test seed phrase here with twelve words or more"
+SEED_PHRASE_2="another seed phrase if needed for testing multiple"
+RPC_URL="https://your-base-rpc-endpoint"
+```
 
 ## Usage
 
-### Seed Wallet Addresses
+### Wallet Derivation
 
-To derive wallet addresses from your seed phrases and store them:
-
-```bash
-# Sequential processing (standard)
-deno task seed-wallets
-
-# Multi-threaded processing (8.5x faster)
-deno task seed-wallets-parallel
-```
-
-These commands will:
-1. Load seed phrases from your `.env` file
-2. Derive wallet addresses (default: 2000 addresses per seed phrase)
-3. Store them in Deno KV with keys in the format: `["wallet_address", "seed_N", index]`
-
-### Configuration
-
-Adjust the following in the `.env` file:
-
-```
-SEED_PHRASE_1="your seed phrase here"
-SEED_PHRASE_2="another seed phrase"
-# Add more as needed
-RPC_URL="https://mainnet.example.com"
-```
-
-### Run Tests
+Derive wallet addresses from seed phrases and store in Deno KV:
 
 ```bash
-deno task test
+# Sequential version
+deno run --allow-net --allow-env --allow-read seed_wallets.ts
+
+# Parallel version (multi-threaded)
+deno run --allow-net --allow-env --allow-read seed_wallets_parallel.ts
 ```
 
-### Run Performance Benchmarks
+### ETH Balance Multicall Benchmark
 
-Simple benchmark (2000 addresses, single seed phrase):
+Test how many wallet ETH balances can be fetched in a single multicall before the RPC endpoint breaks:
+
 ```bash
-deno task benchmark
+# Basic benchmark
+deno run --allow-net --allow-env --allow-read --allow-write eth_balance_multicall_benchmark.ts
+
+# With CSV export
+deno run --allow-net --allow-env --allow-read --allow-write eth_balance_multicall_benchmark.ts --csv
+
+# With detailed output
+deno run --allow-net --allow-env --allow-read --allow-write eth_balance_multicall_benchmark.ts --detailed
 ```
 
-Comprehensive benchmark suite:
-```bash
-deno task benchmark-test
+#### Benchmark Configuration
+
+The ETH balance benchmark can be configured via environment variables:
+
+```
+# Optional configuration
+START_WALLET_COUNT=50
+MAX_WALLET_COUNT=10000
+WALLET_COUNT_INCREMENT=50
+RETRY_COUNT=3
+WORKER_COUNT=8     # Number of CPU threads to use (defaults to CPU core count)
+WALLET_BATCH_SIZE=100   # Wallet addresses per batch
 ```
 
-Multi-threaded benchmark:
-```bash
-deno task benchmark-parallel
+You can also override batch sizes with:
+
+```
+BATCH_SIZE_1024=1000  # Override the 1024-byte batch size to 1000
+BATCH_SIZE_2048=2000  # etc.
 ```
 
 ## Performance
 
-We offer two implementation options for wallet generation:
+### Wallet Derivation Performance
 
-### Sequential Processing
-- Processing speed: ~130 wallets/second
-- Time per wallet: ~7.7ms
-- Good for smaller batches or limited hardware
+- **Sequential:** ~130 wallets/second
+- **Parallel (16 cores):** ~1140 wallets/second (8.5x faster)
 
-### Multi-threaded Processing
-- Processing speed: ~1140 wallets/second (with 16 cores)
-- Time per wallet: ~0.9ms
-- 8.5x faster than sequential processing
-- Automatically scales with available CPU cores
-- Uses Deno Workers for true parallelism
+### ETH Balance Multicall
 
-See the [task.md](./task.md) file for detailed benchmark results.
+The ETH balance multicall benchmark will find the maximum number of wallet balances that can be retrieved from your RPC endpoint in a single request. Results vary depending on the RPC provider and network conditions.
 
-## Architecture
+## Testing
 
-- `seed_wallets.ts`: Sequential implementation (single-threaded)
-- `seed_wallets_parallel.ts`: Multi-threaded implementation using Deno Workers
-- `wallet_worker.ts`: Worker file for parallel address derivation
-- `seed_wallets.test.ts`: Test suite for wallet generation
-- `seed_wallets_benchmark.ts`: Standalone benchmark
-- `seed_wallets_benchmark.test.ts`: Comprehensive benchmark test suite
-- `seed_wallets_parallel_benchmark.ts`: Multi-threaded benchmark suite
+Run the tests with:
 
-## Security Considerations
-
-- Seed phrases are sensitive information. Never share your `.env` file.
-- The `.gitignore` file is configured to prevent committing `.env` files.
-- Use environment variables rather than hardcoding seed phrases.
+```bash
+deno test --allow-net --allow-env
+```
 
 ## License
 
