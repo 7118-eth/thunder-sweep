@@ -50,32 +50,9 @@ export function getSeedPhrasesFromEnv(
 }
 
 /**
- * Generate addresses for a batch without storing them yet
- * This is the CPU-intensive part we want to parallelize
+ * Process wallet addresses using Deno Workers for true CPU parallelism
  */
-function generateAddressBatch(
-  seedIndex: number,
-  mnemonic: string,
-  startIndex: number,
-  endIndex: number
-): AddressBatch {
-  const addresses = [];
-  for (let i = startIndex; i <= endIndex; i++) {
-    const account = mnemonicToAccount(mnemonic, { addressIndex: i });
-    addresses.push({ index: i, address: account.address });
-  }
-  return {
-    seedIndex,
-    startIndex,
-    endIndex,
-    addresses
-  };
-}
-
-/**
- * Process wallet addresses with CPU-bound optimizations
- */
-async function processCPUBoundAddresses(
+async function processAddressesWithWorkers(
   kv: Deno.Kv,
   seedIndex: number,
   mnemonic: string,
@@ -91,54 +68,115 @@ async function processCPUBoundAddresses(
     batches.push({ start: i, end });
   }
   
-  let processedCount = 0;
-  const totalBatches = batches.length;
+  console.log(`Creating ${concurrency} worker threads for ${batches.length} batches`);
   
-  // Process batches in chunks based on concurrency
-  for (let i = 0; i < totalBatches; i += concurrency) {
-    const currentBatches = batches.slice(i, i + concurrency);
-    
-    // Run CPU-intensive work concurrently
-    const batchResults = await Promise.all(
-      currentBatches.map(batch => 
-        generateAddressBatch(seedIndex, mnemonic, batch.start, batch.end)
-      )
-    );
-    
-    // Store results in KV (less CPU intensive)
-    for (const batch of batchResults) {
-      const kvPromises = batch.addresses.map(({ index, address }) => {
-        const kvKey = ["wallet_address", `seed_${seedIndex}`, index];
-        return kv.set(kvKey, address);
-      });
-      
-      await Promise.all(kvPromises);
-      processedCount += batch.addresses.length;
-      
-      // Log progress 
-      if (batch.endIndex % 200 === 0 || batch.endIndex === maxAddressIndex) {
-        console.log(`  -> Processed to index ${batch.endIndex}: ${batch.addresses[batch.addresses.length-1].address}`);
-      }
-    }
-    
-    // Report progress after each concurrency chunk
-    const percentComplete = Math.round((i + currentBatches.length) / totalBatches * 100);
-    console.log(`  Progress: ${percentComplete}% (${processedCount}/${maxAddressIndex + 1} addresses)`);
+  // Create worker pool
+  const workers: Worker[] = [];
+  for (let i = 0; i < concurrency; i++) {
+    const worker = new Worker(new URL("./wallet_worker.ts", import.meta.url).href, {
+      type: "module",
+      // No extra permissions needed for worker
+    });
+    workers.push(worker);
   }
   
-  return maxAddressIndex + 1;
+  let processedCount = 0;
+  let workerIndex = 0;
+  let pendingBatches = batches.length;
+  
+  return new Promise<number>((resolve, reject) => {
+    // Set up result handlers for all workers
+    workers.forEach((worker) => {
+      worker.onmessage = async (e) => {
+        const result = e.data;
+        
+        if (result.type === 'success') {
+          const { addresses } = result;
+          
+          // Store addresses in KV
+          const kvPromises = addresses.map(({ index, address }) => {
+            const kvKey = ["wallet_address", `seed_${seedIndex}`, index];
+            return kv.set(kvKey, address);
+          });
+          
+          await Promise.all(kvPromises);
+          processedCount += addresses.length;
+          
+          // Log progress
+          if (result.endIndex % 200 === 0 || result.endIndex === maxAddressIndex) {
+            console.log(`  -> Processed to index ${result.endIndex}: ${addresses[addresses.length-1].address}`);
+          }
+          
+          // If there are more batches to process, assign work to this worker
+          const nextBatchIndex = batches.length - pendingBatches;
+          if (nextBatchIndex < batches.length) {
+            const nextBatch = batches[nextBatchIndex];
+            pendingBatches--;
+            
+            worker.postMessage({
+              mnemonic,
+              seedIndex,
+              startIndex: nextBatch.start,
+              endIndex: nextBatch.end
+            });
+          }
+          
+          // Calculate progress
+          const percentComplete = Math.round((1 - (pendingBatches / batches.length)) * 100);
+          console.log(`  Progress: ${percentComplete}% (${processedCount}/${maxAddressIndex + 1} addresses)`);
+          
+          // If all batches are processed, terminate workers and resolve
+          if (processedCount >= maxAddressIndex + 1) {
+            workers.forEach(w => w.terminate());
+            resolve(maxAddressIndex + 1);
+          }
+        } else if (result.type === 'error') {
+          // Handle error
+          console.error(`Worker error processing indices ${result.startIndex}-${result.endIndex}: ${result.error}`);
+          pendingBatches--;
+          
+          // If all batches are processed (or failed), terminate workers and resolve
+          if (pendingBatches === 0) {
+            workers.forEach(w => w.terminate());
+            resolve(processedCount);
+          }
+        }
+      };
+      
+      worker.onerror = (err) => {
+        console.error('Worker error:', err);
+        reject(err);
+      };
+    });
+    
+    // Start initial batch of work
+    const initialBatchCount = Math.min(concurrency, batches.length);
+    for (let i = 0; i < initialBatchCount; i++) {
+      const batch = batches[i];
+      pendingBatches--;
+      
+      workers[workerIndex].postMessage({
+        mnemonic,
+        seedIndex,
+        startIndex: batch.start,
+        endIndex: batch.end
+      });
+      
+      workerIndex = (workerIndex + 1) % concurrency;
+    }
+  });
 }
 
 /**
  * Derives addresses from seed phrases and stores them in the provided Deno KV store,
- * optimizing for CPU-bound operations.
+ * using Deno Workers for true CPU parallelism.
  */
 export async function seedWalletsParallel(
   kv: Deno.Kv,
   options: SeedWalletOptions,
   env: Record<string, string> = Deno.env.toObject(),
 ): Promise<void> {
-  console.log("Starting CPU-optimized wallet seeding process...");
+  console.log("Starting multi-threaded wallet seeding process...");
   
   const seedPhrases = getSeedPhrasesFromEnv(env);
   if (seedPhrases.length === 0) {
@@ -146,12 +184,12 @@ export async function seedWalletsParallel(
     return;
   }
   
-  // CPU-bound optimizations - Use all available CPU cores by default
+  // Use all available CPU cores by default
   const concurrency = options.concurrency || DEFAULT_CONCURRENCY;
   const batchSize = options.batchSize || 100; // Default batch size
   
   console.log(`Available CPU cores detected: ${CPU_CORES}`);
-  console.log(`Using CPU-optimized settings: concurrency=${concurrency}, batchSize=${batchSize}`);
+  console.log(`Using multi-threaded settings: workers=${concurrency}, batchSize=${batchSize}`);
   
   // Process each seed phrase sequentially
   for (const { index: seedIndex, phrase: mnemonic } of seedPhrases) {
@@ -166,7 +204,7 @@ export async function seedWalletsParallel(
       
       const startTime = performance.now();
       
-      const addressCount = await processCPUBoundAddresses(
+      const addressCount = await processAddressesWithWorkers(
         kv,
         seedIndex,
         mnemonic,
@@ -191,7 +229,7 @@ export async function seedWalletsParallel(
     }
   }
   
-  console.log("CPU-optimized wallet seeding process completed.");
+  console.log("Multi-threaded wallet seeding process completed.");
 }
 
 // --- Script Execution ---

@@ -31,12 +31,14 @@ async function runMaxCPUBenchmark() {
   // Sequential implementation baseline
   console.log("\n📊 SEQUENTIAL IMPLEMENTATION (BASELINE)");
   let kv = await Deno.openKv(":memory:");
+  let seqWalletsPerSecond = 0; // Declare variable in outer scope
+
   try {
     const seqStartTime = performance.now();
     await seedWallets(kv, { maxAddressIndex: WALLETS_COUNT - 1 }, mockEnv);
     const seqEndTime = performance.now();
     const seqTotalTime = seqEndTime - seqStartTime;
-    const seqWalletsPerSecond = WALLETS_COUNT / (seqTotalTime / 1000);
+    seqWalletsPerSecond = WALLETS_COUNT / (seqTotalTime / 1000); // Assign to outer variable
 
     console.log("\n📈 Sequential Implementation Results:");
     console.log(`Total wallets generated: ${WALLETS_COUNT}`);
