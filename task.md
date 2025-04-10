@@ -54,7 +54,7 @@
     *   Measure and report total execution time. ✅
     *   Identify any performance bottlenecks and optimize if necessary. ✅
     
-    **Benchmark Results:**
+    **Sequential Benchmark Results:**
     *   **Single Seed Phrase (1500 addresses):**
         * Processing speed: ~130 wallets/second
         * Time per wallet: ~7.7ms
@@ -70,18 +70,37 @@
         * Derivation + KV storage time: 3.83s (for 500 addresses) 
         * Storage overhead: ~1.1%
         * KV storage adds minimal overhead to the process
+    
+    **Multi-threaded Benchmark Results:**
+    *   **Optimal Configuration (16 CPU cores, batch size of 50):**
+        * Processing speed: ~1140 wallets/second
+        * Time per wallet: ~0.9ms
+        * Total time for 2000 addresses: ~1.75 seconds
+        * Performance improvement: 8.54x faster than sequential processing
+        
+    *   **Batch Size Analysis:**
+        * Small batch sizes (50-200) performed best
+        * Larger batch sizes (500-1000) performed worse
+        * Batch size of 50 was optimal in testing
+        
+    *   **CPU Utilization:**
+        * Performance scales with available CPU cores
+        * Implementation uses Deno Workers for true parallelism
+        * 16 cores processed wallets 8.5x faster than single-threaded version
         
     **Performance Conclusions:**
-    * The wallet derivation process scales linearly and is consistent across different test runs
-    * The Deno KV storage adds minimal overhead to the process
-    * The implementation can handle the required 2000 wallets per seed phrase efficiently
-    * No significant optimizations are needed as performance is already good
+    * The CPU-bound nature of wallet derivation makes it ideal for parallelization
+    * Multi-threaded implementation with Deno Workers dramatically improves performance
+    * Deno KV storage overhead is minimal (~1.1%)
+    * Small, evenly-distributed batches yield optimal performance
+    * For production use, the multi-threaded implementation is strongly recommended
 
 6.  **Final Review & Documentation:** ✅
     *   Review code for clarity, security, and adherence to constraints. ✅
     *   Add necessary comments. ✅
     *   Ensure `task.md` is up-to-date. ✅
     *   Create README.md with usage instructions. ✅
+    *   Add multi-threaded implementation option. ✅
 
 **Next Steps:**
 
