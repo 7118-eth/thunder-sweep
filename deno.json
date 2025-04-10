@@ -5,7 +5,8 @@
     "seed-wallets-parallel": "deno run --allow-env --allow-read --allow-write --unstable-kv seed_wallets_parallel.ts",
     "test": "deno test --allow-env --allow-read --allow-write --unstable-kv",
     "benchmark": "deno run --allow-env --allow-read --allow-write --unstable-kv seed_wallets_benchmark.ts",
-    "benchmark-test": "deno test --allow-env --allow-read --allow-write --unstable-kv seed_wallets_benchmark.test.ts"
+    "benchmark-test": "deno test --allow-env --allow-read --allow-write --unstable-kv seed_wallets_benchmark.test.ts",
+    "benchmark-parallel": "deno run --allow-env --allow-read --allow-write --unstable-kv seed_wallets_parallel_benchmark.ts"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1",
