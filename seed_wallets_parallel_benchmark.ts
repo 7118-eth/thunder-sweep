@@ -6,6 +6,9 @@ import type { Address } from "viem";
 const TEST_MNEMONIC = "test test test test test test test test test test test junk";
 const WALLETS_COUNT = 2000;
 
+// Get available CPU cores
+const CPU_CORES = navigator.hardwareConcurrency || 4; // Default to 4 if detection fails
+
 // Helper to format time
 function formatTime(ms: number): string {
   if (ms < 1000) return `${ms.toFixed(0)}ms`;
@@ -16,16 +19,17 @@ function formatTime(ms: number): string {
   return `${minutes}m ${remainingSeconds.toFixed(0)}s`;
 }
 
-// Run benchmark comparing sequential vs parallel implementation
-async function runComparisonBenchmark() {
-  console.log(`🧪 Starting comparison benchmark for generating ${WALLETS_COUNT} wallet addresses...`);
+// Run benchmark at maximum CPU utilization
+async function runMaxCPUBenchmark() {
+  console.log(`🧪 Starting CPU-optimized benchmark for generating ${WALLETS_COUNT} wallet addresses...`);
   console.log(`Using test mnemonic: "${TEST_MNEMONIC.substring(0, 20)}..."`);
+  console.log(`Detected CPU cores: ${CPU_CORES}`);
   
   // Create a custom environment with just one seed phrase
   const mockEnv = { SEED_PHRASE_1: TEST_MNEMONIC };
   
-  // Sequential implementation benchmark
-  console.log("\n📊 SEQUENTIAL IMPLEMENTATION");
+  // Sequential implementation baseline
+  console.log("\n📊 SEQUENTIAL IMPLEMENTATION (BASELINE)");
   let kv = await Deno.openKv(":memory:");
   try {
     const seqStartTime = performance.now();
@@ -43,62 +47,55 @@ async function runComparisonBenchmark() {
     kv.close();
   }
 
-  // CPU-bound optimizations - Test with varying concurrency levels and batch sizes
-  console.log("\n📊 CPU-OPTIMIZED IMPLEMENTATION");
+  // Benchmark with maximum CPU utilization
+  console.log(`\n🚀 MAXIMUM CPU UTILIZATION (${CPU_CORES} cores)`);
   
-  // Test different combinations of workers (CPU concurrency) and batch sizes
-  // For CPU-bound tasks, concurrency should be close to available CPU cores
-  const cpuConfigs = [
-    { concurrency: 2, batchSize: 100 },
-    { concurrency: 4, batchSize: 100 },
-    { concurrency: 6, batchSize: 100 },
-    { concurrency: 4, batchSize: 50 },
-    { concurrency: 4, batchSize: 200 },
-    { concurrency: 4, batchSize: 500 },
-  ];
+  // Test different batch sizes to find optimal configuration
+  const batchSizes = [50, 100, 200, 500, 1000];
+  let bestConfig = { batchSize: 100, time: Infinity, rate: 0 };
   
-  for (const config of cpuConfigs) {
-    console.log(`\n⚙️ Testing with CPU config: concurrency=${config.concurrency}, batchSize=${config.batchSize}`);
+  for (const batchSize of batchSizes) {
+    console.log(`\n⚙️ Testing with max CPU cores and batchSize=${batchSize}`);
     kv = await Deno.openKv(":memory:");
     
     try {
-      const parStartTime = performance.now();
+      const startTime = performance.now();
       await seedWalletsParallel(kv, { 
         maxAddressIndex: WALLETS_COUNT - 1,
-        concurrency: config.concurrency,
-        batchSize: config.batchSize
+        concurrency: CPU_CORES,  // Maximum CPU utilization
+        batchSize
       }, mockEnv);
-      const parEndTime = performance.now();
-      const parTotalTime = parEndTime - parStartTime;
-      const parWalletsPerSecond = WALLETS_COUNT / (parTotalTime / 1000);
+      const endTime = performance.now();
+      const totalTime = endTime - startTime;
+      const walletsPerSecond = WALLETS_COUNT / (totalTime / 1000);
 
-      console.log(`📈 CPU-Optimized Results (concurrency=${config.concurrency}, batchSize=${config.batchSize}):`);
+      console.log(`📈 Results with ${CPU_CORES} cores and batchSize=${batchSize}:`);
       console.log(`Total wallets generated: ${WALLETS_COUNT}`);
-      console.log(`Total time: ${formatTime(parTotalTime)}`);
-      console.log(`Average speed: ${parWalletsPerSecond.toFixed(2)} wallets/second`);
-      console.log(`Average time per wallet: ${(parTotalTime / WALLETS_COUNT).toFixed(2)}ms`);
+      console.log(`Total time: ${formatTime(totalTime)}`);
+      console.log(`Average speed: ${walletsPerSecond.toFixed(2)} wallets/second`);
+      console.log(`Average time per wallet: ${(totalTime / WALLETS_COUNT).toFixed(2)}ms`);
+      
+      // Track best configuration
+      if (totalTime < bestConfig.time) {
+        bestConfig = { batchSize, time: totalTime, rate: walletsPerSecond };
+      }
     } finally {
       kv.close();
     }
   }
   
-  // Test one pure derivation configuration 
-  console.log("\n🧪 PURE DERIVATION TEST (CPU-ONLY, NO KV OPERATIONS)");
+  // Run a pure derivation test (no KV storage) with max CPU
+  console.log("\n🧪 PURE DERIVATION TEST (MAX CPU, NO STORAGE)");
   const derivationStartTime = performance.now();
   
-  // Run pure derivation without KV storage, using worker count = CPU cores
-  const PURE_CPU_CONCURRENCY = 4;
-  const addressBatches = [];
-  
-  // Create batches and calculate addresses
-  const batchSize = Math.ceil(WALLETS_COUNT / PURE_CPU_CONCURRENCY);
+  // Create batches for every CPU core
+  const batchSize = Math.ceil(WALLETS_COUNT / CPU_CORES);
   const batchPromises = [];
   
-  for (let i = 0; i < PURE_CPU_CONCURRENCY; i++) {
+  for (let i = 0; i < CPU_CORES; i++) {
     const start = i * batchSize;
     const end = Math.min(start + batchSize - 1, WALLETS_COUNT - 1);
     
-    // Create a promise for each batch
     batchPromises.push((async () => {
       const addresses = [];
       for (let j = start; j <= end; j++) {
@@ -109,7 +106,8 @@ async function runComparisonBenchmark() {
     })());
   }
   
-  // Run all batches in parallel
+  // Run batches across all CPU cores
+  const addressBatches = [];
   await Promise.all(batchPromises).then(results => {
     addressBatches.push(...results);
   });
@@ -118,16 +116,26 @@ async function runComparisonBenchmark() {
   const derivationTotalTime = derivationEndTime - derivationStartTime;
   const derivationWalletsPerSecond = WALLETS_COUNT / (derivationTotalTime / 1000);
   
-  console.log(`📈 Pure CPU Derivation Results (concurrency=${PURE_CPU_CONCURRENCY}):`);
+  console.log(`📈 Pure Derivation Results (${CPU_CORES} cores):`);
   console.log(`Total wallets generated: ${WALLETS_COUNT}`);
   console.log(`Total time: ${formatTime(derivationTotalTime)}`);
   console.log(`Average speed: ${derivationWalletsPerSecond.toFixed(2)} wallets/second`);
   console.log(`Average time per wallet: ${(derivationTotalTime / WALLETS_COUNT).toFixed(2)}ms`);
+  
+  // Summary with best configuration
+  console.log("\n🏆 OPTIMAL CONFIGURATION:");
+  console.log(`Best performance: ${bestConfig.rate.toFixed(2)} wallets/second`);
+  console.log(`Configuration: ${CPU_CORES} cores with batch size ${bestConfig.batchSize}`);
+  console.log(`Time for ${WALLETS_COUNT} wallets: ${formatTime(bestConfig.time)}`);
+  
+  // Calculate improvement over sequential
+  const improvementFactor = bestConfig.rate / seqWalletsPerSecond;
+  console.log(`Speed improvement: ${improvementFactor.toFixed(2)}x faster than sequential processing`);
   
   console.log("\n🏁 Benchmark completed!");
 }
 
 // Run the benchmark
 if (import.meta.main) {
-  await runComparisonBenchmark();
+  await runMaxCPUBenchmark();
 } 

@@ -4,7 +4,9 @@ import type { Address } from "viem";
 
 // --- Constants ---
 const SEED_PHRASE_PREFIX = "SEED_PHRASE_";
-const DEFAULT_CONCURRENCY = 4; // Default to number of CPU cores
+// Get available CPU cores using navigator.hardwareConcurrency
+const CPU_CORES = navigator.hardwareConcurrency || 4; // Default to 4 if detection fails
+const DEFAULT_CONCURRENCY = CPU_CORES; // Use all available cores
 
 // --- Types ---
 interface SeedWalletOptions {
@@ -144,11 +146,11 @@ export async function seedWalletsParallel(
     return;
   }
   
-  // CPU-bound optimizations - keep concurrency close to CPU core count
-  // and use larger batch sizes to amortize overhead
+  // CPU-bound optimizations - Use all available CPU cores by default
   const concurrency = options.concurrency || DEFAULT_CONCURRENCY;
   const batchSize = options.batchSize || 100; // Default batch size
   
+  console.log(`Available CPU cores detected: ${CPU_CORES}`);
   console.log(`Using CPU-optimized settings: concurrency=${concurrency}, batchSize=${batchSize}`);
   
   // Process each seed phrase sequentially
@@ -204,7 +206,7 @@ if (import.meta.main) {
       
       await seedWalletsParallel(kv, {
         maxAddressIndex: DEFAULT_MAX_ADDRESS_INDEX,
-        concurrency: 4,  // Set to approximate number of CPU cores
+        concurrency: CPU_CORES,  // Use all available cores
         batchSize: 100   // Process in chunks of 100 addresses
       });
       
