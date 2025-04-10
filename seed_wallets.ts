@@ -91,7 +91,9 @@ export async function seedWallets(
             console.log(`Finished processing ${SEED_PHRASE_PREFIX}${seedIndex}. Stored ${storedCount} addresses (indices 0-${options.maxAddressIndex}).`);
 
         } catch (error) {
-            console.error(`Error processing ${SEED_PHRASE_PREFIX}${seedIndex} at index ${storedCount}:`, error.message);
+            // Type check the error before accessing .message
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error(`Error processing ${SEED_PHRASE_PREFIX}${seedIndex} at index ${storedCount}:`, errorMessage);
             console.warn(`  Skipping remaining indices for ${SEED_PHRASE_PREFIX}${seedIndex} due to error.`);
             continue;
         }
