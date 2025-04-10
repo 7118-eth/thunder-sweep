@@ -33,7 +33,7 @@ const args = parseArgs(Deno.args, {
   string: ["format", "output", "min-balance", "max-wallets", "batch-size", "workers"],
   default: {
     format: "text",
-    "max-wallets": "100",
+    "max-wallets": "2000",
     workers: String(CPU_CORES),
     "batch-size": "0", // 0 means auto-select based on wallet count
   },
@@ -57,7 +57,7 @@ Usage:
   deno run --allow-net --allow-env --allow-read wallet_balance_cli.ts [options]
 
 Options:
-  --max-wallets=N         Maximum number of wallets to check per seed phrase (default: 100)
+  --max-wallets=N         Maximum number of wallets to check per seed phrase (default: 2000)
   --format=[text|csv|json] Output format (default: text)
   --output=FILE           Write output to specified file
   --eth-only              Only check ETH balances, skip tokens
