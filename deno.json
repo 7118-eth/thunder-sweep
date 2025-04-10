@@ -1,6 +1,7 @@
 {
   "tasks": {
-    "dev": "deno run --watch main.ts"
+    "dev": "deno run --watch main.ts",
+    "seed-wallets": "deno run --allow-env --allow-read --allow-write seed_wallets.ts"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1",
