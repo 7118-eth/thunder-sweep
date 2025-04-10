@@ -3,3 +3,4 @@
 
 # Deno cache/lock files (optional but good practice)
 deno.lock 
+balances.csv
