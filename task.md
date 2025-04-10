@@ -29,30 +29,35 @@
     *   Setup `deno.json` (imports, tasks `seed-wallets`, `test`). ✅
     *   Create initial `seed_wallets.ts` and `seed_wallets.test.ts`. ✅
 2.  **Refactor for Testability (`seed_wallets.ts`):**
-    *   Export core functions (`getSeedPhrasesFromEnv`, `seedWallets`).
-    *   Modify `seedWallets` to accept parameters for dependencies (e.g., `kv: Deno.Kv`, `options: { maxAddressIndex: number }`).
-    *   Modify `getSeedPhrasesFromEnv` to optionally accept an environment object for easier mocking (e.g., `getSeedPhrasesFromEnv(env = Deno.env.toObject())`).
-    *   Wrap direct script execution logic in `if (import.meta.main)` check.
+    *   Export core functions (`getSeedPhrasesFromEnv`, `seedWallets`). ✅
+    *   Modify `seedWallets` to accept parameters for dependencies (e.g., `kv: Deno.Kv`, `options: { maxAddressIndex: number }`). ✅
+    *   Modify `getSeedPhrasesFromEnv` to optionally accept an environment object for easier mocking (e.g., `getSeedPhrasesFromEnv(env = Deno.env.toObject())`). ✅
+    *   Wrap direct script execution logic in `if (import.meta.main)` check. ✅
 3.  **Write Tests (`seed_wallets.test.ts`):**
-    *   **`getSeedPhrasesFromEnv` Tests:**
-        *   Test with mocked env variables containing `SEED_PHRASE_N`.
-        *   Test with no relevant env variables.
-        *   Test with gaps in numbering (e.g., `SEED_PHRASE_1`, `SEED_PHRASE_3`).
-    *   **`seedWallets` Tests (using in-memory KV):**
-        *   Test successful seeding of a known mnemonic for a small range of indices (e.g., 0-2).
-        *   Verify correct addresses are derived using `viem`.
-        *   Verify correct keys and values are stored in the in-memory KV store.
-        *   Test with multiple seed phrases.
-        *   Test behavior when no seed phrases are provided.
-        *   Test behavior with an invalid/short mnemonic (should skip/log error).
-4.  **Implement/Adapt Logic (`seed_wallets.ts`):**
-    *   Ensure the implementation of `getSeedPhrasesFromEnv` and `seedWallets` passes all tests written in the previous step.
-    *   Adapt the existing logic to match the refactored function signatures.
-5.  **Final Review & Documentation:**
+    *   **`getSeedPhrasesFromEnv` Tests:** ✅
+        *   Test with mocked env variables containing `SEED_PHRASE_N`. ✅
+        *   Test with no relevant env variables. ✅
+        *   Test with gaps in numbering (e.g., `SEED_PHRASE_1`, `SEED_PHRASE_3`). ✅
+    *   **`seedWallets` Tests (using in-memory KV):** ✅
+        *   Test successful seeding of a known mnemonic for a small range of indices (e.g., 0-2). ✅
+        *   Verify correct addresses are derived using `viem`. ✅
+        *   Verify correct keys and values are stored in the in-memory KV store. ✅
+        *   Test with multiple seed phrases. ✅
+        *   Test behavior when no seed phrases are provided. ✅
+        *   Test behavior with an invalid/short mnemonic (should skip/log error). ✅
+4.  **Implement/Adapt Logic (`seed_wallets.ts`):** ✅
+    *   Ensure the implementation of `getSeedPhrasesFromEnv` and `seedWallets` passes all tests written in the previous step. ✅
+    *   Adapt the existing logic to match the refactored function signatures. ✅
+5.  **Performance Benchmark:**
+    *   Create a benchmark test that loads 2000 wallets per seed phrase.
+    *   Include live statistics during the benchmark (elapsed time, wallets generated per second).
+    *   Measure and report total execution time.
+    *   Identify any performance bottlenecks and optimize if necessary.
+6.  **Final Review & Documentation:**
     *   Review code for clarity, security, and adherence to constraints.
     *   Add necessary comments.
     *   Ensure `task.md` is up-to-date.
 
 **Next Steps:**
 
-*   Execute **Task 2: Refactor for Testability**. 
+*   Execute **Task 5: Performance Benchmark**. 
