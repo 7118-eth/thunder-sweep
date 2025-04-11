@@ -6,7 +6,20 @@
     "test": "deno test --allow-env --allow-read --allow-write --unstable-kv",
     "benchmark": "deno run --allow-env --allow-read --allow-write --unstable-kv seed_wallets_benchmark.ts",
     "benchmark-test": "deno test --allow-env --allow-read --allow-write --unstable-kv seed_wallets_benchmark.test.ts",
-    "benchmark-parallel": "deno run --allow-env --allow-read --allow-write --allow-net --unstable-kv --unstable-worker-options --allow-read=. seed_wallets_parallel_benchmark.ts"
+    "benchmark-parallel": "deno run --allow-env --allow-read --allow-write --allow-net --unstable-kv --unstable-worker-options --allow-read=. seed_wallets_parallel_benchmark.ts",
+    
+    "wallet-balance": "deno run --allow-net --allow-env --allow-read wallet_balance_cli.ts",
+    "wallet-balance-eth": "deno run --allow-net --allow-env --allow-read wallet_balance_cli.ts --eth-only",
+    "wallet-balance-token": "deno run --allow-net --allow-env --allow-read wallet_balance_cli.ts --token-only",
+    "wallet-balance-csv": "deno run --allow-net --allow-env --allow-read --allow-write wallet_balance_cli.ts --format=csv --output=balances.csv",
+    "wallet-balance-json": "deno run --allow-net --allow-env --allow-read --allow-write wallet_balance_cli.ts --format=json --output=balances.json",
+    "wallet-balance-summary": "deno run --allow-net --allow-env --allow-read wallet_balance_cli.ts --summary-only",
+    "wallet-balance-verbose": "deno run --allow-net --allow-env --allow-read wallet_balance_cli.ts --verbose",
+    "wallet-balance-large": "deno run --allow-net --allow-env --allow-read wallet_balance_cli.ts --max-wallets=2000",
+    
+    "eth-multicall-benchmark": "deno run --allow-net --allow-env --allow-read --allow-write eth_balance_multicall_benchmark.ts",
+    "eth-multicall-benchmark-csv": "deno run --allow-net --allow-env --allow-read --allow-write eth_balance_multicall_benchmark.ts --csv",
+    "eth-multicall-benchmark-detailed": "deno run --allow-net --allow-env --allow-read --allow-write eth_balance_multicall_benchmark.ts --detailed"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1",
