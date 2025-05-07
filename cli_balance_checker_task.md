@@ -34,14 +34,14 @@
 # Required
 SEED_PHRASE_1="your test seed phrase here with twelve words or more"
 RPC_URL="https://your-base-rpc-endpoint"
+TOKEN_ADDRESS="0xYourTokenAddress"  # Required unless using --eth-only
 
 # Optional - Add more seed phrases
 SEED_PHRASE_2="another seed phrase if needed"
 SEED_PHRASE_3="yet another seed phrase"
 
-# Token Configuration
-TOKEN_ADDRESS="0x546D239032b24eCEEE0cb05c92FC39090846adc7"  # Default token to check
-TOKEN_ADDRESSES="0x546D239032b24eCEEE0cb05c92FC39090846adc7,0xAnotherTokenAddress"  # Multiple tokens
+# Optional - Multiple tokens
+TOKEN_ADDRESSES="0xFirstToken,0xSecondToken,0xThirdToken"  # Alternative to TOKEN_ADDRESS
 ```
 
 ### Command-Line Arguments
@@ -175,17 +175,17 @@ The implementation should maintain high performance even with:
 ## Example Usage
 
 ```bash
-# Basic usage - check ETH and default token for 100 wallets per seed phrase
+# Basic usage - check ETH and token balances (TOKEN_ADDRESS must be set in .env)
 deno run --allow-net --allow-env --allow-read wallet_balance_cli.ts
 
-# Check 500 wallets, ETH only, with summary
+# Check ETH only (no token balance checking)
 deno run --allow-net --allow-env --allow-read wallet_balance_cli.ts --max-wallets=500 --eth-only --summary-only
 
-# Check token balances only, export as CSV
+# Check token balances only, export as CSV (TOKEN_ADDRESS must be set in .env)
 deno run --allow-net --allow-env --allow-read wallet_balance_cli.ts --token-only --format=csv --output=token_balances.csv
 
-# Check specific tokens with detailed output
-TOKEN_ADDRESSES="0x546D239032b24eCEEE0cb05c92FC39090846adc7,0xAnotherTokenAddress" \
+# Check multiple tokens with detailed output
+TOKEN_ADDRESSES="0xFirstTokenAddress,0xSecondTokenAddress" \
 deno run --allow-net --allow-env --allow-read wallet_balance_cli.ts --verbose
 ```
 

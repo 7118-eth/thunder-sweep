@@ -17,12 +17,15 @@ A set of Deno utilities for handling seed phrase loading, wallet address derivat
 
 ## Environment Setup
 
-Create a `.env` file with your seed phrases and RPC URL:
+Create a `.env` file with your seed phrases, RPC URL, and token address:
 
 ```
 SEED_PHRASE_1="your test seed phrase here with twelve words or more"
 SEED_PHRASE_2="another seed phrase if needed for testing multiple"
 RPC_URL="https://your-base-rpc-endpoint"
+TOKEN_ADDRESS="0xYourTokenAddress"  # Required when checking token balances
+# Optional: Multiple token addresses
+# TOKEN_ADDRESSES="0xFirstTokenAddress,0xSecondTokenAddress,0xThirdTokenAddress"
 ```
 
 ## Usage

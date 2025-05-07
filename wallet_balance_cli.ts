@@ -15,14 +15,13 @@ if (!RPC_URL) {
   Deno.exit(1);
 }
 
-// Default token address (can be overridden by environment)
-const DEFAULT_TOKEN_ADDRESS = "0x546D239032b24eCEEE0cb05c92FC39090846adc7";
-const TOKEN_ADDRESS = Deno.env.get("TOKEN_ADDRESS") || DEFAULT_TOKEN_ADDRESS;
+// Token address is required
+const TOKEN_ADDRESS = Deno.env.get("TOKEN_ADDRESS");
 
 // Parse multiple token addresses if provided
 const TOKEN_ADDRESSES = Deno.env.get("TOKEN_ADDRESSES")
   ? Deno.env.get("TOKEN_ADDRESSES")!.split(",")
-  : [TOKEN_ADDRESS];
+  : TOKEN_ADDRESS ? [TOKEN_ADDRESS] : [];
 
 // Get available CPU cores for optimal parallelization
 const CPU_CORES = navigator.hardwareConcurrency || 4;
@@ -44,6 +43,12 @@ const args = parseArgs(Deno.args, {
     v: "verbose",
   },
 });
+
+// Check if token address is required but not provided
+if (!args["eth-only"] && TOKEN_ADDRESSES.length === 0) {
+  console.error("TOKEN_ADDRESS or TOKEN_ADDRESSES environment variable must be set unless using --eth-only");
+  Deno.exit(1);
+}
 
 // Show help if requested
 if (args.help) {
@@ -73,7 +78,7 @@ Environment Variables:
   SEED_PHRASE_1           Required: Seed phrase to derive wallets from
   SEED_PHRASE_2, ...      Optional: Additional seed phrases
   RPC_URL                 Required: RPC endpoint URL
-  TOKEN_ADDRESS           Optional: Default token address to check
+  TOKEN_ADDRESS           Required: Token address to check (unless using --eth-only)
   TOKEN_ADDRESSES         Optional: Comma-separated list of token addresses
 
 Examples:
@@ -149,27 +154,27 @@ const client = createPublicClient({
 // Multicall3 contract address
 const MULTICALL3_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
 
-// Define token ABI
+// Define token ABI with proper types for viem
 const tokenAbi = [
   {
-    constant: true,
     inputs: [{ name: "_owner", type: "address" }],
     name: "balanceOf",
     outputs: [{ name: "balance", type: "uint256" }],
+    stateMutability: "view",
     type: "function",
   },
   {
-    constant: true,
     inputs: [],
     name: "decimals",
     outputs: [{ name: "", type: "uint8" }],
+    stateMutability: "view",
     type: "function",
   },
   {
-    constant: true,
     inputs: [],
     name: "symbol",
     outputs: [{ name: "", type: "string" }],
+    stateMutability: "view",
     type: "function",
   },
 ] as const;
@@ -228,14 +233,14 @@ async function fetchTokenInfo(tokenAddress: Address) {
       address: tokenAddress,
       abi: tokenAbi,
       functionName: "symbol",
-    });
+    }) as string;
     
     // Get token decimals
     const decimalsResult = await client.readContract({
       address: tokenAddress,
       abi: tokenAbi,
       functionName: "decimals",
-    });
+    }) as number;
     
     return {
       address: tokenAddress,
@@ -279,7 +284,7 @@ async function fetchTokenBalances(
 
   // Extract and return balance values
   return results.map((result) => 
-    result.status === "success" ? result.result : 0n
+    result.status === "success" ? (result.result as bigint) : 0n
   );
 }
 
@@ -590,4 +595,4 @@ if (import.meta.main) {
     console.error("Unhandled error:", error);
     Deno.exit(1);
   }
-} 
+}
