@@ -99,6 +99,10 @@ Run the tests with:
 deno test --allow-net --allow-env
 ```
 
+## ⚠️ Disclaimer
+
+⚡ ThunderSweep is provided as-is without any warranties. Users are responsible for their own actions and should use this tool in compliance with all applicable laws and regulations. This software is designed for legitimate wallet management and testing purposes only. The developers are not responsible for any misuse, damage, or legal issues arising from the use of this tool.
+
 ## 📜 License
 
 MIT 
