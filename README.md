@@ -2,6 +2,8 @@
 
 The **fastest** publicly available multi-wallet management solution, built with TypeScript and Deno. ThunderSweep leverages multi-threading (JS Workers) and multicall technology to achieve unparalleled performance for massive wallet operations.
 
+> 🏆 **Performance Claim**: If you know of a faster, publicly available solution with an MIT license, please open an issue with performance benchmarks and a link to the repository. We will update our claims accordingly and acknowledge your solution.
+
 ## ✨ Features
 
 - 🔑 Load seed phrases from environment variables
